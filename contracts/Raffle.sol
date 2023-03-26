@@ -39,6 +39,8 @@ contract Raffle is VRFConsumerBaseV2 {
     // Lottery Variables
     address private s_recentWinner;
     RaffleState private s_raffleState;
+    uint256 private s_lastTimeStamp;
+    uint256 private immutable i_interval;
 
     // Events
     event RaffleEnter(address indexed player);
@@ -50,7 +52,8 @@ contract Raffle is VRFConsumerBaseV2 {
         uint256 entranceFee,
         bytes32 gasLane,
         uint64 subscriptionId,
-        uint32 callbackGasLimit
+        uint32 callbackGasLimit,
+        uint256 interval
     ) VRFConsumerBaseV2(vrfCoordinatorV2) {
         i_entranceFee = entranceFee;
         i_vrfCoordinator = VRFCoordinatorV2Interface(vrfCoordinatorV2);
@@ -58,6 +61,8 @@ contract Raffle is VRFConsumerBaseV2 {
         i_subscriptionId = subscriptionId;
         i_callbackGasLimit = callbackGasLimit;
         s_raffleState = RaffleState.OPEN;
+        s_lastTimeStamp = block.timestamp;
+        i_interval = interval;
     }
 
     function enterRaffle() public payable {
@@ -80,8 +85,18 @@ contract Raffle is VRFConsumerBaseV2 {
      * Our subscription is funded with LINK
      * The lottery should be in an "open" state
      */
-    function checkUpkeep(bytes calldata checkData) external override {
+    function checkUpkeep(
+        bytes calldata /* checkData */
+    )
+        external
+        override
+        returns (bool upkeepNeeded, bytes memory /* performData */)
+    {
         bool isOpen = RaffleState.OPEN == s_raffleState;
+        bool timePassed = ((block.timestamp - s_lastTimeStamp) > i_interval);
+        bool hasPlayers = (s_players.length > 0);
+        bool hasBalance = (address(this).balance > 0);
+        upkeepNeeded = (isOpen && timePassed && hasPlayers && hasBalance);
     }
 
     // view / pure functions
