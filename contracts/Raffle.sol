@@ -13,13 +13,24 @@ pragma solidity ^0.8.0;
 
 import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/KeeperCompatibleInterface.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/AutomationCompatibleInterface.sol";
 
 error Raffle__NotEnoughETHEntered();
 error Raffle__TransferFailed();
 error Raffle__NotOpen();
+error Raffle__UpkeepNotNeeded(
+    uint256 currentBalance,
+    uint256 numPlayers,
+    uint256 raffleState
+);
 
-contract Raffle is VRFConsumerBaseV2 {
+/**
+ * @title Simple Raffle Contract Using Chainlink
+ * @author Sardius
+ * @notice This contract is for creating an untamperable decentralized smart contracts
+ * @dev This contract implements Chainlink VRF and Keepers
+ */
+contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface {
     // Type Declaration
     enum RaffleState {
         OPEN,
@@ -86,9 +97,9 @@ contract Raffle is VRFConsumerBaseV2 {
      * The lottery should be in an "open" state
      */
     function checkUpkeep(
-        bytes calldata /* checkData */
+        bytes memory /* checkData */
     )
-        external
+        public
         override
         returns (bool upkeepNeeded, bytes memory /* performData */)
     {
@@ -97,24 +108,24 @@ contract Raffle is VRFConsumerBaseV2 {
         bool hasPlayers = (s_players.length > 0);
         bool hasBalance = (address(this).balance > 0);
         upkeepNeeded = (isOpen && timePassed && hasPlayers && hasBalance);
-    }
-
-    // view / pure functions
-    function getEntranceFee() public view returns (uint256) {
-        return i_entranceFee;
-    }
-
-    function getPlayer(uint256 index) public view returns (address) {
-        return s_players[index];
+        // return upkeepNeeded;
     }
 
     // function called by Chainlink keepers network
     // external functions are a little bit cheaper than public functions
-    // Keep gas efficiency in mind, it always pays to do things more specfically in Solidity
-    function requestRandomWinner() external {
+    // Keep gas efficiency in mind, it always pays to do things more specifically in Solidity
+    function performUpkeep(bytes calldata /* performData*/) external override {
         // Request the random winner
         // Once we get it, do something with it
         // 2 transaction process
+        (bool upkeepNeeded, ) = checkUpkeep("");
+        if (!upkeepNeeded) {
+            revert Raffle__UpkeepNotNeeded(
+                address(this).balance,
+                s_players.length,
+                uint256(s_raffleState)
+            );
+        }
         s_raffleState = RaffleState.CALCULATING;
         uint256 requestId = i_vrfCoordinator.requestRandomWords(
             i_gasLane, // gasLane
@@ -137,6 +148,7 @@ contract Raffle is VRFConsumerBaseV2 {
         s_recentWinner = recentWinner;
         s_raffleState = RaffleState.OPEN;
         s_players = new address payable[](0);
+        s_lastTimeStamp = block.timestamp;
         (bool success, ) = recentWinner.call{value: address(this).balance}("");
         if (!success) {
             revert Raffle__TransferFailed();
@@ -144,7 +156,24 @@ contract Raffle is VRFConsumerBaseV2 {
         emit WinnerPicked(recentWinner);
     }
 
+    // View / Pure functions
+    function getEntranceFee() public view returns (uint256) {
+        return i_entranceFee;
+    }
+
+    function getPlayer(uint256 index) public view returns (address) {
+        return s_players[index];
+    }
+
     function getRecentWinner() public view returns (address) {
         return s_recentWinner;
+    }
+
+    function getRaffleState() public view returns (RaffleState) {
+        return s_raffleState;
+    }
+
+    function getNumWords() public view returns (uint256) {
+        return NUM_WORDS;
     }
 }
