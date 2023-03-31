@@ -1,5 +1,5 @@
 const developmentChains = require("../helper-hardhat-config").developmentChains;
-
+const { network } = require("hardhat");
 const BASE_FEE = ethers.utils.parseEther("0.25"); //0.25 is the premium. It costs 0.25 per request
 const GAS_PRICE_LINK = 1e9; // 1000000000 //link per gas
 
