@@ -130,7 +130,7 @@ const { assert, expect } = require("chai");
           asssert(raffleState.toNumber() == 1);
         });
       });
-      describe("fulfillRandomness", function () {
+      describe("fulfillRandomWords", function () {
         beforeEach(async function () {
           await raffle.enterRaffle({ value: raffleEntranceFee });
           await network.provider.send("evm_increaseTime", [
@@ -146,7 +146,8 @@ const { assert, expect } = require("chai");
             vrfCoordinatorV2Mock.fulfillRandomWords(1, raffle.address)
           ).to.be.revertedWith("nonexistent request");
         });
-        // Way to big, in prod we would divide into smaller sections
+
+        // Way too big, in prod we would divide into smaller sections
         it("picks a winner, resets the lottery, and sends money", async function () {
           const additionalEntrants = 3;
           const startingAccountIndex = 1; // deployer = 0
@@ -161,10 +162,36 @@ const { assert, expect } = require("chai");
               value: raffleEntranceFee,
             });
           }
-          const startingTimeStamp = await raffle.getLastTimeStamp();
+
+          const startingTimeStamp = await raffle.getLatestTimeStamp();
 
           // performUpkeep (mock being chainlink keepers)
           // fulfillRandomWords (mock being the Chainlink VRF)
+          await new Promise(async (resolve, reject) => {
+            raffle.once("WinnerPicked", async () => {
+              console.log("Found the event!");
+              try {
+                console.log(recentWinner);
+                const recentWinner = await raffle.getRecentWinner();
+                const raffleState = await raffle.getRaffleState();
+                const endingTimeStamp = await raffle.getLastTimeStamp();
+                const numPlayers = await raffle.getNumberPlayers();
+                assert.equal(numPlayers.toString(), "0");
+                assert.equal(raffleState.toString(), "0");
+                assert(endingTimeStamp > startingTimeStamp);
+                resolve();
+              } catch (e) {
+                reject(e);
+              }
+            });
+            const tx = await raffle.performUpkeep([]);
+            const txReceipt = await tx.wait(1);
+            const winnerStartingBalance = await accounts[1].getBalance(0);
+            await vrfCoordinatorV2Mock.fulfillRandomWords(
+              txReceipt.events[1].args.requestId,
+              raffle.address
+            );
+          });
         });
       });
     });
