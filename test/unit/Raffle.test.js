@@ -102,5 +102,69 @@ const { assert, expect } = require("chai");
           assert(upkeepNeeded);
         });
       });
-      describe("performUpkeep", function () {});
+      describe("performUpkeep", function () {
+        it("it can only run if checkUpkeep returns true", async function () {
+          await raffle.enterRaffle({ value: raffleEntranceFee });
+          await network.provider.send("evm_increaseTime", [
+            interval.toNumber() + 1,
+          ]);
+          await network.provider.send("evm_mine", []);
+          const tx = await raffle.performUpkeep([]);
+          assert(tx);
+        });
+        it("reverts when checkUpkeep returns false", async function () {
+          await expect(raffle.performUpkeep([])).to.be.revertedWith(
+            "Raffle__UpkeepNotNeeded"
+          );
+        });
+        it("updates the raffle state, emits an event, and calls the vrf coordinator", async function () {
+          await raffle.enterRaffle({ value: raffleEntranceFee });
+          await network.provider.send("evm_increaseTime", [
+            interval.toNumber() + 1,
+          ]);
+          await network.provider.send("evm_mine", []);
+          const txResponse = await raffle.performUpkeep([]);
+          const txReceipt = await txResponse.wait(1);
+          const requestId = txReceipt.events[1].args.requestId;
+          assert(requestId.toNumber() > 0);
+          asssert(raffleState.toNumber() == 1);
+        });
+      });
+      describe("fulfillRandomness", function () {
+        beforeEach(async function () {
+          await raffle.enterRaffle({ value: raffleEntranceFee });
+          await network.provider.send("evm_increaseTime", [
+            interval.toNumber() + 1,
+          ]);
+          await network.provider.send("evm_mine", []);
+        });
+        it("can only be called after performUpkeep", async function () {
+          await expect(
+            vrfCoordinatorV2Mock.fulfillRandomWords(0, raffle.address)
+          ).to.be.revertedWith("nonexistent request");
+          await expect(
+            vrfCoordinatorV2Mock.fulfillRandomWords(1, raffle.address)
+          ).to.be.revertedWith("nonexistent request");
+        });
+        // Way to big, in prod we would divide into smaller sections
+        it("picks a winner, resets the lottery, and sends money", async function () {
+          const additionalEntrants = 3;
+          const startingAccountIndex = 1; // deployer = 0
+          const accounts = await ethers.getSigners();
+          for (
+            let i = startingAccountIndex;
+            i < startingAccountIndex + additionalEntrants;
+            i++
+          ) {
+            const accountConnectedRaffle = raffle.connect(accounts[i]);
+            await accountConnectedRaffle.enterRaffle({
+              value: raffleEntranceFee,
+            });
+          }
+          const startingTimeStamp = await raffle.getLastTimeStamp();
+
+          // performUpkeep (mock being chainlink keepers)
+          // fulfillRandomWords (mock being the Chainlink VRF)
+        });
+      });
     });
