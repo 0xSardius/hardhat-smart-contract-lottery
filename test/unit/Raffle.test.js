@@ -7,9 +7,10 @@ const { assert, expect } = require("chai");
 
 !developmentChains.includes(network.name)
   ? describe.skip
-  : describe("Raffle", function () {
+  : describe("Raffle Unit Tests", function () {
       let raffle, vrfCoordinatorV2Mock, raffleEntranceFee, deployer, interval;
       const chainId = network.config.chainId;
+
       beforeEach(async function () {
         deployer = (await getNamedAccounts()).deployer;
         await deployments.fixture(["all"]);
