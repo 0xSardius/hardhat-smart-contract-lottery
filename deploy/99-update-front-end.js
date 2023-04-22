@@ -10,8 +10,18 @@ module.exports = async function () {
   if (process.env.UPDATE_FRONT_END) {
     console.log("Updating front end...");
     updateContractAddresses();
+    updateAbi();
   }
 };
+
+// Updates ABI constant file in front end
+async function updateAbi() {
+  const raffle = await ethers.getContract("Raffle");
+  fs.writeFileSync(
+    FRONT_END_ABI_FILE,
+    raffle.interface.format(ethers.utils.FormatTypes.json)
+  );
+}
 
 // Useful snippet for live updates of contract addresses. Minute 17:34:21 of hardhat FCC video
 async function updateContractAddresses() {
