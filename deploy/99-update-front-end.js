@@ -1,4 +1,5 @@
 const { ethers } = require("hardhat");
+const { networkConfig } = require("../helper-hardhat-config");
 
 const FRONT_END_ADDRESSES_FILE =
   "../nextjs-smartcontract-lottery-fcc/constants/contractAddresses.json";
@@ -12,7 +13,22 @@ module.exports = async function () {
   }
 };
 
+// Useful snippet for live updates of contract addresses. Minute 17:34:21 of hardhat FCC video
 async function updateContractAddresses() {
   const raffle = await ethers.getContract("Raffle");
-  const currentAddresses = 
+  const chainId = network.confif.chainId.toString();
+  const currentAddresses = JSON.parse(
+    fs.readFileSync(FRONT_END_ADDRESSES_FILE, "utf8")
+  );
+  if (chainId in contractAddresses) {
+    if (!contractAddress[chainId].includes(raffle.address)) {
+      contractAddress[chainId].push(raffle.address);
+    }
+  }
+  {
+    currentAddresses[chainId] = [raffle.address];
+  }
+  fs.writeFileSync(FRONT_END_ADDRESSES_FILE, JSON.stringify(currentAddresses));
 }
+
+module.exports.tags = ["all", "frontend"];
